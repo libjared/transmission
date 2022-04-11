@@ -293,6 +293,8 @@ static tr_option opts[] =
     { 'l', "list", "List all torrents", "l", false, NULL },
     { 'L', "labels", "Set the current torrents' labels", "L", true, "<label[,label...]>" },
     { 960, "move", "Move current torrent's data to a new folder", NULL, true, "<path>" },
+    { 998, "rename-path", "Set the path belonging to the current torrent to be renamed", NULL, true, "<path>" },
+    { 999, "to-name", "Set the new name for the file/dir selected by rename-path", NULL, true, "<name>" },
     { 961, "find", "Tell Transmission where to find a torrent's data", NULL, true, "<path>" },
     { 'm', "portmap", "Enable portmapping via NAT-PMP or UPnP", "m", false, NULL },
     { 'M', "no-portmap", "Disable portmapping", "M", false, NULL },
@@ -388,7 +390,8 @@ enum
     MODE_SESSION_STATS = (1 << 11),
     MODE_SESSION_CLOSE = (1 << 12),
     MODE_BLOCKLIST_UPDATE = (1 << 13),
-    MODE_PORT_TEST = (1 << 14)
+    MODE_PORT_TEST = (1 << 14),
+    MODE_TORRENT_RENAME_PATH = (1 << 15)
 };
 
 static int getOptMode(int val)
@@ -518,6 +521,12 @@ static int getOptMode(int val)
 
     case 960: /* move */
         return MODE_TORRENT_SET_LOCATION;
+
+    case 998: /* rename-path */
+        return MODE_TORRENT_RENAME_PATH;
+
+    case 999: /* to-name */
+        return MODE_TORRENT_RENAME_PATH;
 
     default:
         fprintf(stderr, "unrecognized argument %d\n", val);
@@ -1972,6 +1981,7 @@ static void printSessionStats(tr_variant* top)
 }
 
 static char id[4096];
+static char rename_path_source[4096];
 
 static int processResponse(char const* rpcurl, void const* response, size_t len)
 {
@@ -2961,6 +2971,26 @@ static int processArgs(char const* rpcurl, int argc, char const* const* argv)
                     args = tr_variantDictAddDict(top, ARGUMENTS, 3);
                     tr_variantDictAddStr(args, TR_KEY_location, optarg);
                     tr_variantDictAddBool(args, TR_KEY_move, true);
+                    addIdArg(args, id, NULL);
+                    status |= flush(rpcurl, &top);
+                    break;
+                }
+
+            case 998: /* rename-path */
+                {
+                    tr_strlcpy(rename_path_source, optarg, sizeof(rename_path_source));
+                    break;
+                }
+
+            case 999: /* to-name */
+                {
+                    tr_variant* args;
+                    tr_variant* top = tr_new0(tr_variant, 1);
+                    tr_variantInitDict(top, 2);
+                    tr_variantDictAddStr(top, TR_KEY_method, "torrent-rename-path");
+                    args = tr_variantDictAddDict(top, ARGUMENTS, 3);
+                    tr_variantDictAddStr(args, TR_KEY_path, rename_path_source);
+                    tr_variantDictAddStr(args, TR_KEY_name, optarg);
                     addIdArg(args, id, NULL);
                     status |= flush(rpcurl, &top);
                     break;
